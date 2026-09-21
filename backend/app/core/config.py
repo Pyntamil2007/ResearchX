@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Base Directory: backend/
@@ -18,6 +19,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = f"sqlite:///{BASE_DIR / 'researchx.db'}"
     
+    # Frontend URL & CORS
+    FRONTEND_URL: str = "http://127.0.0.1:5173"
+    CORS_ORIGINS: str = ""
+    
     # Uploads & Storage
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     DEMO_DIR: Path = BASE_DIR / "demo_papers"
@@ -31,6 +36,17 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@researchx.com"
     ADMIN_PASSWORD: str = "Admin@2026"
 
+    # Optional External AI / LLM Keys
+    OPENAI_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
+
+    # Optional SMTP Email Configuration
+    SMTP_EMAIL: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_SERVER: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_FROM_NAME: str = "ResearchX Team"
+
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8",
@@ -39,6 +55,6 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Ensure directories exist
+# Ensure storage directories exist
 settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 settings.DEMO_DIR.mkdir(parents=True, exist_ok=True)

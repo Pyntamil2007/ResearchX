@@ -157,7 +157,8 @@ def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
     db.add(reset_record)
     db.commit()
 
-    reset_link = f"http://127.0.0.1:5173/reset-password?token={token_str}"
+    frontend_base = (settings.FRONTEND_URL or "http://127.0.0.1:5173").rstrip('/')
+    reset_link = f"{frontend_base}/reset-password?token={token_str}"
 
     return StandardResponse(
         success=True,

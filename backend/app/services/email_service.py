@@ -95,6 +95,8 @@ You can now log in to ResearchX and analyze research papers.
 Thank you,
 ResearchX Team"""
 
+        frontend_base = (settings.FRONTEND_URL or "http://127.0.0.1:5173").rstrip('/')
+
         # Professional Times New Roman styled HTML content
         html_content = f"""<!DOCTYPE html>
 <html>
@@ -119,7 +121,7 @@ ResearchX Team"""
       <strong>Registered email:</strong> {recipient_email}
     </div>
     <p>You can now log in to ResearchX and analyze research papers.</p>
-    <p><a href="http://127.0.0.1:5173/login" class="button">Log In to ResearchX</a></p>
+    <p><a href="{frontend_base}/login" class="button">Log In to ResearchX</a></p>
     <div class="footer">
       <p>Thank you,<br><strong>ResearchX Team</strong></p>
     </div>

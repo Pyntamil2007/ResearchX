@@ -37,19 +37,19 @@ def run_full_suite():
     # 3. Authentication: Login Existing Researcher
     log_step("3. User Login Workflow")
     res = requests.post(f"{BASE_URL}/auth/login", json={
-        "email": "researcher@researchx.io",
-        "password": "Researcher@123456"
+        "email": test_user_email,
+        "password": "Password@123"
     })
     assert res.status_code == 200, f"Login failed: {res.text}"
     researcher_token = res.json()["data"]["access_token"]
     researcher_headers = {"Authorization": f"Bearer {researcher_token}"}
-    log_ok("Default researcher logged in successfully")
+    log_ok("Registered researcher logged in successfully")
 
     # 4. Authentication: Login Admin
     log_step("4. Admin Login Workflow")
     res = requests.post(f"{BASE_URL}/auth/login", json={
-        "email": "admin@researchx.io",
-        "password": "Admin@123456"
+        "email": "admin@researchx.com",
+        "password": "Admin@2026"
     })
     assert res.status_code == 200, f"Admin login failed: {res.text}"
     admin_token = res.json()["data"]["access_token"]
@@ -104,6 +104,10 @@ def run_full_suite():
 
     # 7. Research Paper Management & Listing
     log_step("7. Research Papers Search, Filter, Sort & Pagination")
+    # Load demo papers for the new researcher
+    for demo in ["ResNet_Deep_Residual_Learning.pdf", "Attention_Is_All_You_Need.pdf", "Qualitative_AI_Ethics_Governance.pdf"]:
+        requests.post(f"{BASE_URL}/papers/demo/{demo}", headers=researcher_headers)
+
     res = requests.get(f"{BASE_URL}/papers?sort_by=newest&page=1&limit=5", headers=researcher_headers)
     assert res.status_code == 200
     papers_data = res.json()["data"]

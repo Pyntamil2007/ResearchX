@@ -1,4 +1,4 @@
-import api from './api';
+import api, { API_BASE_URL } from './api';
 
 export const paperService = {
   uploadPaper: async (formData, onUploadProgress) => {
@@ -28,7 +28,8 @@ export const paperService = {
 
   downloadPaperUrl: (id) => {
     const token = localStorage.getItem('researchx_token');
-    return `http://127.0.0.1:8000/api/papers/${id}/download?token=${token}`;
+    const base = (API_BASE_URL || '/api').replace(/\/+$/, '');
+    return `${base}/papers/${id}/download?token=${token || ''}`;
   },
 
   deletePaper: async (id) => {
