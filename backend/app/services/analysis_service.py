@@ -8,6 +8,7 @@ from app.models.analysis import Analysis
 from app.models.result import ExtractedResult
 from app.models.history import AnalysisHistory
 from app.services.pdf_service import PDFService
+from app.services.docx_service import DocxService
 from app.services.ocr_service import OCRService
 from app.services.llm_service import LLMService
 from app.services.summary_service import SummaryService
@@ -157,12 +158,16 @@ class AnalysisService:
         )
 
         try:
-            # 1. Read document and extract text (PDF or Image via OCR)
+            # 1. Read document and extract text (PDF, DOCX, DOC, or Image via OCR)
             file_path = Path(paper.file_path)
             file_ext = file_path.suffix.lower()
             
             if file_ext in (".jpg", ".jpeg", ".png", ".webp"):
                 raw_text = OCRService.extract_text_from_image(file_path)
+            elif file_ext == ".docx":
+                raw_text = DocxService.extract_text_from_docx(file_path)
+            elif file_ext == ".doc":
+                raw_text = DocxService.extract_text_from_doc(file_path)
             else:
                 raw_text = PDFService.extract_text_from_pdf(file_path)
                 

@@ -23,11 +23,10 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://127.0.0.1:5173"
     CORS_ORIGINS: str = ""
     
-    # Uploads & Storage
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     DEMO_DIR: Path = BASE_DIR / "demo_papers"
     MAX_FILE_SIZE_MB: int = 100  # 100 MB
-    ALLOWED_EXTENSIONS: list = [".pdf", ".jpg", ".jpeg", ".png", ".webp"]
+    ALLOWED_EXTENSIONS: list = [".pdf", ".docx", ".doc", ".jpg", ".jpeg", ".png", ".webp"]
     
     # Password Reset & Recovery
     RESET_TOKEN_EXPIRE_MINUTES: int = 15

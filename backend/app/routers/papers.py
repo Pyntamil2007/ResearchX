@@ -1,4 +1,5 @@
 import os
+import re
 import math
 import shutil
 import uuid
@@ -15,12 +16,24 @@ from app.models.user import User
 from app.models.paper import ResearchPaper
 from app.models.analysis import Analysis
 from app.services.pdf_service import PDFService
+from app.services.docx_service import DocxService
 from app.services.ocr_service import OCRService
 from app.services.notification_service import NotificationService
 from app.schemas.paper import ResearchPaperResponse, ResearchPaperCreate, ResearchPaperUpdate
 from app.schemas.common import StandardResponse, PaginatedData, PaginationMeta
 
 router = APIRouter(prefix="/papers", tags=["Research Papers"])
+
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "application/octet-stream"
+}
 
 @router.post("/upload", response_model=StandardResponse[ResearchPaperResponse])
 async def upload_paper(
@@ -30,19 +43,22 @@ async def upload_paper(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload a new research paper in PDF or Image (JPG, JPEG, PNG, WEBP) format up to 100MB."""
+    """Upload a new research paper in PDF, DOC, DOCX, or Image (JPG, JPEG, PNG, WEBP) format up to 100MB."""
     # 1. Validate file extension
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in settings.ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file format. Supported formats: {', '.join(settings.ALLOWED_EXTENSIONS).upper()}."
+            detail="Unsupported file type. Please upload PDF, DOC, DOCX, JPG, JPEG, or PNG."
         )
 
-    # 2. Generate safe unique filename
-    unique_prefix = uuid.uuid4().hex[:8]
-    safe_filename = f"{unique_prefix}_{file.filename.replace(' ', '_')}"
-    saved_path = settings.UPLOAD_DIR / safe_filename
+    # 2. Validate MIME type if provided
+    content_type = (file.content_type or "").lower().strip()
+    if content_type and content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported file type. Please upload PDF, DOC, DOCX, JPG, JPEG, or PNG."
+        )
 
     # 3. Read and validate file size (100 MB max)
     contents = await file.read()
@@ -52,17 +68,43 @@ async def upload_paper(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File exceeds the maximum allowed size of {settings.MAX_FILE_SIZE_MB}MB."
         )
-    if len(contents) < 50:
+    if len(contents) < 30:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The uploaded file is empty or corrupted."
         )
 
-    # Save to disk
+    # 4. Content signature verification (Magic Bytes)
+    if file_ext == ".pdf" and not (contents.startswith(b'%PDF') or b'%PDF' in contents[:1024]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded PDF file is corrupted or not a valid PDF."
+        )
+    elif file_ext == ".docx" and not contents.startswith(b'PK\x03\x04'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded DOCX file is corrupted or not a valid Microsoft Word document."
+        )
+    elif file_ext in (".jpg", ".jpeg") and not (contents.startswith(b'\xff\xd8\xff') or contents.startswith(b'\xff\xd8')):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file is not a valid JPEG image."
+        )
+    elif file_ext == ".png" and not contents.startswith(b'\x89PNG\r\n\x1a\n'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file is not a valid PNG image."
+        )
+
+    # 5. Generate safe unique filename and save to storage
+    unique_prefix = uuid.uuid4().hex[:8]
+    safe_filename = f"{unique_prefix}_{file.filename.replace(' ', '_')}"
+    saved_path = settings.UPLOAD_DIR / safe_filename
+
     with open(saved_path, "wb") as f:
         f.write(contents)
 
-    # 4. Extract preliminary text and title (PDF or Image OCR)
+    # 6. Extract preliminary text, title, and authors
     extracted_text = ""
     inferred_title = title.strip() if title else ""
     inferred_authors = "Information not available in the document."
@@ -75,6 +117,20 @@ async def upload_paper(
             if not inferred_title:
                 clean_name = re.sub(r'\.(jpg|jpeg|png|webp)$', '', file.filename, flags=re.I).replace('_', ' ')
                 inferred_title = clean_name
+        elif file_ext == ".docx":
+            extracted_text = DocxService.extract_text_from_docx(saved_path)
+            sections = PDFService.segment_sections(extracted_text)
+            inferred_doc_type = PDFService.detect_document_type(extracted_text)
+            if not inferred_title:
+                inferred_title = sections.get("title") or file.filename.replace(".docx", "").replace("_", " ")
+            inferred_authors = sections.get("authors", inferred_authors)
+        elif file_ext == ".doc":
+            extracted_text = DocxService.extract_text_from_doc(saved_path)
+            sections = PDFService.segment_sections(extracted_text)
+            inferred_doc_type = PDFService.detect_document_type(extracted_text)
+            if not inferred_title:
+                inferred_title = sections.get("title") or file.filename.replace(".doc", "").replace("_", " ")
+            inferred_authors = sections.get("authors", inferred_authors)
         else:
             extracted_text = PDFService.extract_text_from_pdf(saved_path)
             sections = PDFService.segment_sections(extracted_text)
@@ -82,11 +138,13 @@ async def upload_paper(
             if not inferred_title:
                 inferred_title = sections.get("title") or file.filename.replace(".pdf", "").replace("_", " ")
             inferred_authors = sections.get("authors", inferred_authors)
+    except HTTPException:
+        raise
     except Exception as e:
         if not inferred_title:
             inferred_title = file.filename.replace(file_ext, "").replace("_", " ")
 
-    # 5. Create database record
+    # 7. Create database record
     paper = ResearchPaper(
         user_id=current_user.id,
         title=inferred_title[:250],
@@ -107,7 +165,7 @@ async def upload_paper(
         db=db,
         user_id=current_user.id,
         title="Research paper uploaded",
-        message=f"Research paper \"{paper.title}\" uploaded successfully and is ready for analysis.",
+        message=f"Research document \"{paper.title}\" uploaded successfully and is ready for analysis.",
         notification_type="paper_uploaded"
     )
 
@@ -115,7 +173,7 @@ async def upload_paper(
     NotificationService.notify_admins(
         db=db,
         title="New research paper uploaded",
-        message=f"User {current_user.name} ({current_user.email}) uploaded a new research paper: \"{paper.title}\".",
+        message=f"User {current_user.name} ({current_user.email}) uploaded a new research document: \"{paper.title}\".",
         notification_type="admin_paper_uploaded"
     )
 
@@ -331,7 +389,7 @@ def download_paper(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Download the original PDF file of the research paper."""
+    """Download the original document file of the research paper."""
     paper = db.query(ResearchPaper).filter(ResearchPaper.id == id).first()
     if not paper:
         raise HTTPException(
@@ -349,13 +407,25 @@ def download_paper(
     if not file_path.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="The requested PDF file is missing from server storage."
+            detail="The requested file is missing from server storage."
         )
+
+    ext = file_path.suffix.lower()
+    media_types = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".doc": "application/msword",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp"
+    }
+    media_type = media_types.get(ext, "application/octet-stream")
 
     return FileResponse(
         path=str(file_path),
         filename=paper.file_name,
-        media_type="application/pdf"
+        media_type=media_type
     )
 
 @router.delete("/{id}", response_model=StandardResponse[dict])

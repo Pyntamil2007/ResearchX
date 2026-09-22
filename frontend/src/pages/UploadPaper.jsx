@@ -18,7 +18,7 @@ export const UploadPaper = () => {
   const toast = useToast();
   const navigate = useNavigate();
 
-  const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
+  const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
   const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
 
   const DOMAINS = [
@@ -81,7 +81,7 @@ export const UploadPaper = () => {
     const isAllowed = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext));
     
     if (!isAllowed) {
-      toast.error('Invalid file format. Supported: PDF, JPG, JPEG, PNG, WEBP.');
+      toast.error('Unsupported file type. Please upload PDF, DOC, DOCX, JPG, JPEG, or PNG.');
       return;
     }
     if (selectedFile.size > MAX_FILE_SIZE) {
@@ -90,7 +90,7 @@ export const UploadPaper = () => {
     }
     setFile(selectedFile);
     if (!title) {
-      const cleanTitle = selectedFile.name.replace(/\.(pdf|jpg|jpeg|png|webp)$/i, '').replace(/[-_]/g, ' ');
+      const cleanTitle = selectedFile.name.replace(/\.(pdf|docx?|jpg|jpeg|png)$/i, '').replace(/[-_]/g, ' ');
       setTitle(cleanTitle);
     }
   };
@@ -172,7 +172,7 @@ export const UploadPaper = () => {
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '1.85rem', marginBottom: '0.35rem' }}>Upload Research Document</h1>
         <p style={{ color: 'var(--text-muted)' }}>
-          Upload an academic paper in PDF format or document image (JPG, PNG, WEBP). ResearchX extracts text via OCR & PDF parsing, performs NLP + LLM analysis, and builds an interactive report.
+          Upload an academic paper or document (PDF, DOC, DOCX, JPG, JPEG, PNG). ResearchX extracts text via intelligent parsing & OCR, performs NLP + LLM analysis, and builds an interactive report.
         </p>
       </div>
 
@@ -249,7 +249,7 @@ export const UploadPaper = () => {
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/*"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
               style={{ display: 'none' }}
               id="document-file-input"
             />
@@ -273,7 +273,7 @@ export const UploadPaper = () => {
                   Choose a document file or drag & drop it here
                 </h4>
                 <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', fontWeight: 500 }}>
-                  Supported: PDF, JPG, JPEG, PNG, WEBP | Maximum size: 100 MB
+                  Supported formats: PDF, DOC, DOCX, JPG, JPEG, PNG | Maximum size: 100 MB
                 </p>
               </div>
             )}
