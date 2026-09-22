@@ -6,7 +6,7 @@ from pypdf import PdfReader
 class PDFService:
     @staticmethod
     def extract_text_from_pdf(file_path: Path) -> str:
-        """Extract clean plain text from a PDF file."""
+        """Extract clean plain text from all pages of a PDF file, preserving page order."""
         if not file_path.exists():
             raise FileNotFoundError(f"PDF file not found at: {file_path}")
 
@@ -60,7 +60,7 @@ class PDFService:
         Strictly excludes emails, affiliations, universities, citations, footnotes,
         acknowledgements, references, and institution names.
         """
-        NOT_FOUND = "Information not available"
+        NOT_FOUND = "Author information could not be reliably extracted."
         if not lines:
             return NOT_FOUND
 
@@ -71,7 +71,7 @@ class PDFService:
         ]
         
         for pat in author_patterns:
-            m = re.search(pat, text[:1500], re.IGNORECASE)
+            m = re.search(pat, text[:2000], re.IGNORECASE)
             if m:
                 candidate = m.group(1).strip()
                 names = PDFService._extract_valid_names_from_text(candidate)
@@ -80,14 +80,19 @@ class PDFService:
 
         # 2. Look exclusively in the candidate block between Title and Abstract / Introduction
         abstract_idx = -1
-        for idx, line in enumerate(lines[:15]):
+        for idx, line in enumerate(lines[:20]):
             if re.match(r'^(?:abstract|introduction|1\.?\s+introduction)\b', line, re.IGNORECASE):
                 abstract_idx = idx
                 break
 
-        search_limit = abstract_idx if abstract_idx > 1 else min(6, len(lines))
+        search_limit = abstract_idx if abstract_idx > 1 else min(8, len(lines))
         candidate_lines = []
-        for line in lines[1:search_limit]:
+        # Skip the first 1-2 lines if they represent the title
+        start_line = 1 if len(lines) > 1 else 0
+        if len(lines) > 2 and len(lines[0]) < 40 and not any(lines[0].lower().startswith(x) for x in ["by", "author"]):
+            start_line = 2
+
+        for line in lines[start_line:search_limit]:
             sanitized = PDFService._sanitize_author_line(line)
             if sanitized:
                 candidate_lines.append(sanitized)
@@ -107,20 +112,23 @@ class PDFService:
         if not sanitized:
             return []
 
-        # Split on commas, semicolons, or 'and'
-        raw_parts = [p.strip() for p in re.split(r'[,;]|\band\b|&', sanitized) if p.strip()]
+        # Remove academic titles and prefixes before splitting
+        cleaned_text = re.sub(r'\b(?:Dr\.|Prof\.|Professor|Doctor|Mr\.|Ms\.|Mrs\.|Ph\.D\.|M\.Sc\.|B\.Sc\.|MD|IEEE Fellow|Member|Senior Member)\b', '', sanitized, flags=re.IGNORECASE)
+
+        # Split on commas, semicolons, 'and', or '&'
+        raw_parts = [p.strip() for p in re.split(r'[,;]|\band\b|&', cleaned_text) if p.strip()]
         valid_names = []
 
         for part in raw_parts:
             # Clean inner spaces and symbols
-            clean_part = re.sub(r'[\d\*\†\‡\§\^]', '', part).strip()
+            clean_part = re.sub(r'[\d\*\†\‡\§\^\¹\²\³\⁴\⁵\⁶\⁷\⁸\⁹\⁰]', '', part).strip()
             clean_part = re.sub(r'\s+', ' ', clean_part)
             
             if PDFService._is_valid_person_name(clean_part):
                 if clean_part not in valid_names:
                     valid_names.append(clean_part)
 
-        return valid_names[:10]
+        return valid_names[:12]
 
     @staticmethod
     def _sanitize_author_line(line: str) -> Optional[str]:
@@ -137,7 +145,8 @@ class PDFService:
             "published in", "proceedings", "conference", "journal", "volume", "vol.", "no.",
             "pp.", "doi:", "http", "www.", "copyright", "all rights reserved", "received", "accepted",
             "acknowledgement", "reference", "citation", "editor", "press", "inc.", "ltd", "corp",
-            "usa", "uk", "china", "germany", "france", "canada", "india", "japan", "center for"
+            "usa", "uk", "china", "germany", "france", "canada", "india", "japan", "center for",
+            "lab", "division", "tech report", "preprint", "under review"
         ]
         
         if any(w in lower for w in exclude_words):
@@ -147,8 +156,8 @@ class PDFService:
         line = re.sub(r'\{[^\}]+\}@\S+', '', line)
         line = re.sub(r'\S+@\S+', '', line)
         
-        # Remove footnote markers & superscripts (1, 2, *, †, ‡, §, ^)
-        line = re.sub(r'[\d\*\†\‡\§\^]', '', line)
+        # Remove footnote markers & superscripts (1, 2, *, †, ‡, §, ^, ¹, ², ³, etc.)
+        line = re.sub(r'[\d\*\†\‡\§\^\¹\²\³\⁴\⁵\⁶\⁷\⁸\⁹\⁰]', '', line)
         
         # Remove brackets, parentheses, curly braces
         line = re.sub(r'[\(\)\[\]\{\}]', '', line)
@@ -158,7 +167,7 @@ class PDFService:
         line = re.sub(r'\s+', ' ', line).strip()
 
         words = line.split()
-        if 1 <= len(words) <= 15 and any(c.isalpha() for c in line):
+        if 1 <= len(words) <= 18 and any(c.isalpha() for c in line):
             return line
 
         return None
@@ -178,11 +187,13 @@ class PDFService:
         if not re.match(r"^[A-Za-z\.\'\-\s]+$", name):
             return False
             
-        # Exclude non-name stop words and domain words
+        # Exclude non-name stop words and research terms
         stopwords = {
             "the", "and", "for", "with", "from", "paper", "study", "analysis", "system", "model",
             "deep", "learning", "residual", "attention", "transformer", "network", "overview",
-            "report", "survey", "method", "results", "table", "figure", "page", "section"
+            "report", "survey", "method", "results", "table", "figure", "page", "section",
+            "quantum", "neural", "framework", "architecture", "dataset", "empirical", "evaluation",
+            "abstract", "introduction", "conclusion", "state", "estimation", "algorithm"
         }
         if any(w.lower() in stopwords for w in words):
             return False
@@ -236,17 +247,33 @@ class PDFService:
     def segment_sections(text: str) -> Dict[str, str]:
         """
         Segment academic paper into recognized sections using robust heading patterns.
-        Falls back to 'Information not available in the paper.' for missing sections.
+        Falls back to 'Not explicitly mentioned in the paper.' for missing sections.
         """
-        NOT_FOUND = "Information not available in the paper."
+        NOT_FOUND = "Not explicitly mentioned in the paper."
+        NOT_FOUND_DATASET = "Dataset information is not explicitly mentioned in the paper."
+        NOT_FOUND_AUTHORS = "Author information could not be reliably extracted."
         
         if not text:
-            return {sec: NOT_FOUND for sec in [
-                "title", "authors", "abstract", "introduction", "problem", "motivation",
-                "objective", "methodology", "algorithms", "technologies", "dataset",
-                "experimental_setup", "results", "discussion", "conclusion",
-                "limitations", "future_work", "references"
-            ]}
+            return {
+                "title": NOT_FOUND,
+                "authors": NOT_FOUND_AUTHORS,
+                "abstract": NOT_FOUND,
+                "introduction": NOT_FOUND,
+                "problem": NOT_FOUND,
+                "motivation": NOT_FOUND,
+                "objective": NOT_FOUND,
+                "methodology": NOT_FOUND,
+                "algorithms": NOT_FOUND,
+                "technologies": NOT_FOUND,
+                "dataset": NOT_FOUND_DATASET,
+                "experimental_setup": NOT_FOUND,
+                "results": NOT_FOUND,
+                "discussion": NOT_FOUND,
+                "conclusion": NOT_FOUND,
+                "limitations": NOT_FOUND,
+                "future_work": NOT_FOUND,
+                "references": NOT_FOUND
+            }
 
         sections = {}
         lines = [line.strip() for line in text.split('\n') if line.strip()]
@@ -304,6 +331,9 @@ class PDFService:
                 extracted_blocks[name] = content
 
         for name, _ in heading_patterns:
-            sections[name] = extracted_blocks.get(name, NOT_FOUND)
+            if name == "dataset":
+                sections[name] = extracted_blocks.get(name, NOT_FOUND_DATASET)
+            else:
+                sections[name] = extracted_blocks.get(name, NOT_FOUND)
 
         return sections

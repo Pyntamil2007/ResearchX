@@ -151,7 +151,8 @@ export const AnalysisReport = () => {
   const authorsRaw = report.authors || '';
   const isAuthorsUnavailable = !authorsRaw ||
     authorsRaw.toLowerCase().includes('information not available') ||
-    authorsRaw.toLowerCase().includes('not available');
+    authorsRaw.toLowerCase().includes('not available') ||
+    authorsRaw.toLowerCase().includes('could not be reliably extracted');
 
   const parsedAuthorsList = !isAuthorsUnavailable
     ? authorsRaw.split(/[,;\n]+/).map(a => a.trim()).filter(a => a.length > 1)
@@ -270,7 +271,7 @@ export const AnalysisReport = () => {
             </div>
           ) : (
             <div className="not-available-box">
-              <p><strong>Authors:</strong> Information not available in the document.</p>
+              <p><strong>Authors:</strong> Author information could not be reliably extracted.</p>
             </div>
           )}
         </div>
@@ -358,7 +359,7 @@ export const AnalysisReport = () => {
           </div>
         </div>
         <div className="section-content-block">
-          <p className="academic-paragraph">{report.research_problem || 'Information not available in the document.'}</p>
+          <p className="academic-paragraph">{report.research_problem || 'Not explicitly mentioned in the paper.'}</p>
         </div>
       </section>
 
@@ -376,7 +377,7 @@ export const AnalysisReport = () => {
           </div>
         </div>
         <div className="section-content-block">
-          <p className="academic-paragraph">{report.objective || 'Information not available in the document.'}</p>
+          <p className="academic-paragraph">{report.objective || 'Not explicitly mentioned in the paper.'}</p>
         </div>
       </section>
 
@@ -394,8 +395,8 @@ export const AnalysisReport = () => {
           </div>
         </div>
         <div className="section-content-block">
-          <p className="academic-paragraph">{report.methodology || 'Methodology could not be reliably identified.'}</p>
-          {report.proposed_solution && report.proposed_solution !== report.methodology && (
+          <p className="academic-paragraph">{report.methodology || 'Not explicitly mentioned in the paper.'}</p>
+          {report.proposed_solution && report.proposed_solution !== report.methodology && !report.proposed_solution.toLowerCase().includes('not explicitly') && (
             <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
               <h4 style={{ fontSize: '0.95rem', color: 'var(--accent)', marginBottom: 4 }}>Proposed Solution Mechanism:</h4>
               <p className="academic-paragraph">{report.proposed_solution}</p>
@@ -418,8 +419,8 @@ export const AnalysisReport = () => {
           </div>
         </div>
         <div className="section-content-block">
-          <p className="academic-paragraph">{report.algorithms || 'Information not available in the document.'}</p>
-          {report.technologies && !report.technologies.toLowerCase().includes('not available') && (
+          <p className="academic-paragraph">{report.algorithms || 'Not explicitly mentioned in the paper.'}</p>
+          {report.technologies && !report.technologies.toLowerCase().includes('not explicitly') && !report.technologies.toLowerCase().includes('not available') && (
             <div style={{ marginTop: '0.75rem', fontSize: '0.88rem', color: 'var(--text-muted)' }}>
               <strong>Software Frameworks & Infrastructure:</strong> {report.technologies}
             </div>
@@ -441,8 +442,8 @@ export const AnalysisReport = () => {
           </div>
         </div>
         <div className="section-content-block">
-          <p className="academic-paragraph">{report.dataset || 'Information not available in the document.'}</p>
-          {report.experimental_setup && !report.experimental_setup.toLowerCase().includes('not available') && (
+          <p className="academic-paragraph">{report.dataset || 'Dataset information is not explicitly mentioned in the paper.'}</p>
+          {report.experimental_setup && !report.experimental_setup.toLowerCase().includes('not explicitly') && !report.experimental_setup.toLowerCase().includes('not available') && (
             <div style={{ marginTop: '0.75rem', fontSize: '0.88rem', color: 'var(--text-muted)' }}>
               <strong>Experimental Configuration:</strong> {report.experimental_setup}
             </div>
@@ -466,7 +467,7 @@ export const AnalysisReport = () => {
 
         <div className="section-content-block">
           <p className="academic-paragraph" style={{ marginBottom: '1.5rem' }}>
-            {report.results || 'Information not available in the document.'}
+            {report.results || 'Not explicitly mentioned in the paper.'}
           </p>
 
           {/* Visualizations (Interactive Charts & Benchmarks) */}
@@ -490,7 +491,7 @@ export const AnalysisReport = () => {
           </div>
         </div>
         <div className="section-content-block">
-          <p className="academic-paragraph">{report.key_findings || 'Information not available in the document.'}</p>
+          <p className="academic-paragraph">{report.key_findings || 'Not explicitly mentioned in the paper.'}</p>
         </div>
       </section>
 
@@ -508,7 +509,7 @@ export const AnalysisReport = () => {
           </div>
         </div>
         <div className="section-content-block">
-          <p className="academic-paragraph">{report.limitations || 'Information not available in the document.'}</p>
+          <p className="academic-paragraph">{report.limitations || 'Not explicitly mentioned in the paper.'}</p>
         </div>
       </section>
 
@@ -526,7 +527,7 @@ export const AnalysisReport = () => {
           </div>
         </div>
         <div className="section-content-block">
-          <p className="academic-paragraph">{report.future_work || 'Information not available in the document.'}</p>
+          <p className="academic-paragraph">{report.future_work || 'Not explicitly mentioned in the paper.'}</p>
         </div>
       </section>
 
@@ -544,7 +545,7 @@ export const AnalysisReport = () => {
           </div>
         </div>
         <div className="section-content-block">
-          <p className="academic-paragraph">{report.contribution || 'Information not available in the document.'}</p>
+          <p className="academic-paragraph">{report.contribution || 'Not explicitly mentioned in the paper.'}</p>
         </div>
       </section>
 

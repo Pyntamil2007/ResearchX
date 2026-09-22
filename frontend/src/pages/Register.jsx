@@ -43,7 +43,7 @@ export const Register = () => {
 
     setLoading(true);
     try {
-      const data = await register(name, email, password);
+      const data = await register(name.trim(), email.trim().toLowerCase(), password);
       toast.success('Registration successful! Welcome to ResearchX.');
       if (data?.user?.role === 'ADMIN') {
         navigate('/admin/dashboard', { replace: true });

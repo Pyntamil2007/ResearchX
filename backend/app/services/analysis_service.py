@@ -189,11 +189,11 @@ class AnalysisService:
 
             # 6. Extract Paper Overview metadata
             title = sections.get("title") or paper.title
-            if title and title not in ("Information not available in the paper.", "Information not available in the document."):
+            if title and title not in ("Not explicitly mentioned in the paper.", "Information not available in the paper.", "Information not available in the document."):
                 paper.title = title
             
             authors = sections.get("authors") or paper.authors
-            if authors and authors not in ("Information not available in the paper.", "Information not available in the document."):
+            if authors and authors not in ("Author information could not be reliably extracted.", "Information not available in the paper.", "Information not available in the document."):
                 paper.authors = authors
 
             publication_info = AnalysisService._detect_publication_info(raw_text)
@@ -203,20 +203,23 @@ class AnalysisService:
                 raw_text, sections, primary_domain, doc_type, paper.title, paper.authors
             )
 
-            problem = llm_analysis.get("research_problem") or "Information not available in the document."
-            motivation = llm_analysis.get("motivation") or "Information not available in the document."
-            objective = llm_analysis.get("objective") or "Information not available in the document."
-            proposed_sol = llm_analysis.get("proposed_solution") or "Information not available in the document."
-            contribution = llm_analysis.get("contribution") or "Information not available in the document."
-            methodology = llm_analysis.get("methodology") or sections.get("methodology") or "Methodology could not be reliably identified."
-            algorithms = llm_analysis.get("algorithms") or "Information not available in the document."
-            technologies = llm_analysis.get("technologies") or "Information not available in the document."
-            dataset = llm_analysis.get("dataset") or "Information not available in the document."
-            experimental_setup = llm_analysis.get("experimental_setup") or "Information not available in the document."
-            results_text = llm_analysis.get("results") or sections.get("results") or "Information not available in the document."
-            key_findings = llm_analysis.get("key_findings") or "Information not available in the document."
-            limitations = llm_analysis.get("limitations") or "Information not available in the document."
-            future_work = llm_analysis.get("future_work") or "Information not available in the document."
+            NOT_FOUND = "Not explicitly mentioned in the paper."
+            NOT_FOUND_DATASET = "Dataset information is not explicitly mentioned in the paper."
+
+            problem = llm_analysis.get("research_problem") or NOT_FOUND
+            motivation = llm_analysis.get("motivation") or NOT_FOUND
+            objective = llm_analysis.get("objective") or NOT_FOUND
+            proposed_sol = llm_analysis.get("proposed_solution") or NOT_FOUND
+            contribution = llm_analysis.get("contribution") or NOT_FOUND
+            methodology = llm_analysis.get("methodology") or sections.get("methodology") or NOT_FOUND
+            algorithms = llm_analysis.get("algorithms") or NOT_FOUND
+            technologies = llm_analysis.get("technologies") or NOT_FOUND
+            dataset = llm_analysis.get("dataset") or NOT_FOUND_DATASET
+            experimental_setup = llm_analysis.get("experimental_setup") or NOT_FOUND
+            results_text = llm_analysis.get("results") or sections.get("results") or NOT_FOUND
+            key_findings = llm_analysis.get("key_findings") or NOT_FOUND
+            limitations = llm_analysis.get("limitations") or NOT_FOUND
+            future_work = llm_analysis.get("future_work") or NOT_FOUND
 
             # 8. Generate Easy Summary (6 beginner questions)
             easy_summary = SummaryService.generate_easy_summary(sections, primary_domain)

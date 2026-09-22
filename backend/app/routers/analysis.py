@@ -115,12 +115,12 @@ def get_analysis(
         easy_summary = EasySummaryStructure(**raw_summary)
     except Exception:
         easy_summary = EasySummaryStructure(
-            what_is_this_paper_about="Information not available in the paper.",
-            what_problem_does_it_solve="Information not available in the paper.",
-            why_was_the_research_conducted="Information not available in the paper.",
-            how_was_it_performed="Information not available in the paper.",
-            what_was_the_result="Information not available in the paper.",
-            what_is_the_main_contribution="Information not available in the paper."
+            what_is_this_paper_about="Not explicitly mentioned in the paper.",
+            what_problem_does_it_solve="Not explicitly mentioned in the paper.",
+            why_was_the_research_conducted="Not explicitly mentioned in the paper.",
+            how_was_it_performed="Not explicitly mentioned in the paper.",
+            what_was_the_result="Not explicitly mentioned in the paper.",
+            what_is_the_main_contribution="Not explicitly mentioned in the paper."
         )
 
     # Extracted results
@@ -151,7 +151,7 @@ def get_analysis(
         ]
         viz_data = VisualizationData(
             has_visualizations=True,
-            message="Empirical metrics and model comparisons extracted from paper.",
+            message="Empirical metrics and comparative model benchmarks extracted directly from the research document.",
             chart_type="bar" if len(extracted_results) <= 8 else "comparison",
             metrics_summary=metrics_set,
             series=series,
@@ -160,7 +160,7 @@ def get_analysis(
     else:
         viz_data = VisualizationData(
             has_visualizations=False,
-            message="No suitable numerical or comparative data was identified in this paper. Visualization was not generated.",
+            message="No suitable numerical data was found in the paper for this visualization.",
             chart_type="none",
             metrics_summary=[],
             series=[],

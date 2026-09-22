@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.services.text_polisher import TextPolisher
 
 class SummaryService:
@@ -9,55 +9,66 @@ class SummaryService:
         Generate a clear, beginner-friendly 6-point summary strictly grounded
         in the extracted research sections without inventing facts, formatted in neat sentences.
         """
-        NOT_FOUND = "Information not available in the document."
+        NOT_FOUND = "Not explicitly mentioned in the paper."
         
-        abstract = sections.get("abstract", NOT_FOUND)
-        intro = sections.get("introduction", NOT_FOUND)
-        problem = sections.get("problem", NOT_FOUND)
-        motivation = sections.get("motivation", NOT_FOUND)
-        objective = sections.get("objective", NOT_FOUND)
-        methodology = sections.get("methodology", NOT_FOUND)
-        results = sections.get("results", NOT_FOUND)
-        conclusion = sections.get("conclusion", NOT_FOUND)
+        def is_valid_section(val: Optional[str]) -> bool:
+            if not val or not isinstance(val, str):
+                return False
+            low = val.strip().lower()
+            return low not in [
+                "not explicitly mentioned in the paper.",
+                "dataset information is not explicitly mentioned in the paper.",
+                "information not available in the paper.",
+                "information not available in the document.",
+                "information not available",
+                ""
+            ]
+
+        abstract = sections.get("abstract") if is_valid_section(sections.get("abstract")) else None
+        intro = sections.get("introduction") if is_valid_section(sections.get("introduction")) else None
+        problem = sections.get("problem") if is_valid_section(sections.get("problem")) else None
+        motivation = sections.get("motivation") if is_valid_section(sections.get("motivation")) else None
+        objective = sections.get("objective") if is_valid_section(sections.get("objective")) else None
+        methodology = sections.get("methodology") if is_valid_section(sections.get("methodology")) else None
+        results = sections.get("results") if is_valid_section(sections.get("results")) else None
+        conclusion = sections.get("conclusion") if is_valid_section(sections.get("conclusion")) else None
         
         # 1. What is this paper about?
         about = NOT_FOUND
-        if abstract != NOT_FOUND:
+        if abstract:
             about = TextPolisher.format_neat_paragraph(abstract, max_sentences=2)
-        elif intro != NOT_FOUND:
+        elif intro:
             about = TextPolisher.format_neat_paragraph(intro, max_sentences=2)
 
         # 2. What problem does it solve?
         problem_solved = NOT_FOUND
-        if problem != NOT_FOUND:
+        if problem:
             problem_solved = TextPolisher.format_neat_paragraph(problem, max_sentences=2)
-        elif intro != NOT_FOUND:
+        elif intro:
             problem_match = re.search(r'(?:tackle|address|challenge|problem of|limitation of|bottleneck|inability to)\s+([^.!?]+[.!?])', intro, re.IGNORECASE)
             if problem_match:
                 problem_solved = TextPolisher.polish_sentence(f"The study addresses the issue where {problem_match.group(1).strip()}")
-            elif abstract != NOT_FOUND:
+            elif abstract:
                 problem_solved = TextPolisher.format_neat_paragraph(abstract, max_sentences=2)
+        elif abstract:
+            problem_solved = TextPolisher.format_neat_paragraph(abstract, max_sentences=2)
 
         # 3. Why was the research conducted?
         why_conducted = NOT_FOUND
-        if motivation != NOT_FOUND:
+        if motivation:
             why_conducted = TextPolisher.format_neat_paragraph(motivation, max_sentences=2)
-        elif objective != NOT_FOUND:
+        elif objective:
             why_conducted = TextPolisher.format_neat_paragraph(objective, max_sentences=2)
-        elif intro != NOT_FOUND:
+        elif intro:
             mot_match = re.search(r'(?:motivated by|crucial because|essential to|aim to|need for)\s+([^.!?]+[.!?])', intro, re.IGNORECASE)
             if mot_match:
                 why_conducted = TextPolisher.polish_sentence(f"This research was conducted because {mot_match.group(1).strip()}")
-            else:
-                why_conducted = f"The research was conducted to advance capabilities and overcome limitations in the field of {domain.lower()}."
-        elif abstract != NOT_FOUND:
-            why_conducted = f"The research was conducted to investigate and provide solutions for key challenges in {domain.lower()}."
 
         # 4. How was it performed?
         how_performed = NOT_FOUND
-        if methodology != NOT_FOUND:
+        if methodology:
             how_performed = TextPolisher.format_neat_paragraph(methodology, max_sentences=2)
-        elif abstract != NOT_FOUND:
+        elif abstract:
             method_match = re.search(r'(?:we propose|we introduce|we design|by using|via|our approach)\s+([^.!?]+[.!?])', abstract, re.IGNORECASE)
             if method_match:
                 how_performed = TextPolisher.polish_sentence(f"The authors propose {method_match.group(1).strip()}")
@@ -66,35 +77,35 @@ class SummaryService:
 
         # 5. What was the result?
         what_result = NOT_FOUND
-        if results != NOT_FOUND:
+        if results:
             what_result = TextPolisher.format_neat_paragraph(results, max_sentences=2)
-        elif conclusion != NOT_FOUND:
+        elif conclusion:
             res_match = re.search(r'(?:results show|demonstrates that|achieves|outperforms|evaluated on)\s+([^.!?]+[.!?])', conclusion, re.IGNORECASE)
             if res_match:
                 what_result = TextPolisher.polish_sentence(f"Experimental outcomes show that {res_match.group(1).strip()}")
             else:
                 what_result = TextPolisher.format_neat_paragraph(conclusion, max_sentences=2)
-        elif abstract != NOT_FOUND:
+        elif abstract:
             res_match = re.search(r'(?:results show|demonstrates that|achieves|outperforms)\s+([^.!?]+[.!?])', abstract, re.IGNORECASE)
             if res_match:
                 what_result = TextPolisher.polish_sentence(f"The paper reports that {res_match.group(1).strip()}")
 
         # 6. What is the main contribution?
         contribution = NOT_FOUND
-        if conclusion != NOT_FOUND:
+        if conclusion:
             contrib_match = re.search(r'(?:contributions? include|we have presented|key contribution|novelty of)\s+([^.!?]+[.!?])', conclusion, re.IGNORECASE)
             if contrib_match:
                 contribution = TextPolisher.polish_sentence(f"The primary contribution is {contrib_match.group(1).strip()}")
             else:
                 contribution = TextPolisher.format_neat_paragraph(conclusion, max_sentences=2)
-        elif abstract != NOT_FOUND:
+        elif abstract:
             contribution = TextPolisher.format_neat_paragraph(abstract, max_sentences=2)
 
         return {
-            "what_is_this_paper_about": about or NOT_FOUND,
-            "what_problem_does_it_solve": problem_solved or NOT_FOUND,
-            "why_was_the_research_conducted": why_conducted or NOT_FOUND,
-            "how_was_it_performed": how_performed or NOT_FOUND,
-            "what_was_the_result": what_result or NOT_FOUND,
-            "what_is_the_main_contribution": contribution or NOT_FOUND
+            "what_is_this_paper_about": about,
+            "what_problem_does_it_solve": problem_solved,
+            "why_was_the_research_conducted": why_conducted,
+            "how_was_it_performed": how_performed,
+            "what_was_the_result": what_result,
+            "what_is_the_main_contribution": contribution
         }

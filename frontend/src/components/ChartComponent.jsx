@@ -47,10 +47,10 @@ export const ChartComponent = ({ visualizationData, data }) => {
           <AlertCircle size={26} />
         </div>
         <h4 style={{ fontSize: '1.1rem', color: '#ffffff', marginBottom: '0.4rem', fontFamily: 'var(--font-heading)' }}>
-          Qualitative Research Document
+          Research Visualizations
         </h4>
         <p style={{ maxWidth: '520px', margin: '0 auto', fontSize: '0.92rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-          {vData?.message || "No numerical metrics or comparative benchmarks were extracted from this qualitative document. Synthetic data is not generated to maintain academic rigor."}
+          {vData?.message || "No suitable numerical data was found in the paper for this visualization."}
         </p>
       </div>
     );

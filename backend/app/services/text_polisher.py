@@ -38,8 +38,17 @@ class TextPolisher:
         Ensure a single sentence is capitalized, clean, and properly punctuated with a terminal period.
         """
         s = sentence.strip()
-        if not s or s.startswith("Information not available"):
-            return "Information not available in the document."
+        if not s:
+            return "Not explicitly mentioned in the paper."
+        if s in [
+            "Not explicitly mentioned in the paper.",
+            "Dataset information is not explicitly mentioned in the paper.",
+            "Author information could not be reliably extracted.",
+            "No suitable numerical data was found in the paper for this visualization.",
+            "Information not available in the document.",
+            "Information not available in the paper."
+        ]:
+            return s
         
         # Capitalize first character
         if len(s) > 0:
@@ -56,12 +65,20 @@ class TextPolisher:
         """
         Transform raw extracted text into neat, readable, academic-grade sentences.
         """
-        if not text or text.strip() in [
+        if not text:
+            return "Not explicitly mentioned in the paper."
+            
+        text_str = text.strip()
+        if text_str in [
+            "Not explicitly mentioned in the paper.",
+            "Dataset information is not explicitly mentioned in the paper.",
+            "Author information could not be reliably extracted.",
+            "No suitable numerical data was found in the paper for this visualization.",
             "Information not available in the document.",
             "Information not available in the paper.",
             "Not specified in the document."
         ]:
-            return "Information not available in the document."
+            return text_str
 
         cleaned = TextPolisher.clean_text_artifacts(text)
         

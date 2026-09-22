@@ -107,7 +107,7 @@ async def upload_paper(
     # 6. Extract preliminary text, title, and authors
     extracted_text = ""
     inferred_title = title.strip() if title else ""
-    inferred_authors = "Information not available in the document."
+    inferred_authors = "Author information could not be reliably extracted."
     inferred_doc_type = "Research Paper"
     
     try:
