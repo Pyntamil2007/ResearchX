@@ -75,7 +75,7 @@ RESEARCH_DOMAINS_TAXONOMY: Dict[str, Dict[str, Any]] = {
     },
     "Education": {
         "description": "Educational Technology and Learning Analytics study digital pedagogical methodologies, automated grading, intelligent tutoring systems, and student learning patterns.",
-        "keywords": ["education", "learning analytics", "student", "pedagogy", "curriculum", "tutoring", "classroom", "academic performance", "e-learning", "mooc"]
+        "keywords": ["education", "learning analytics", "student", "students", "pedagogy", "pedagogical", "curriculum", "tutoring", "classroom", "academic performance", "e-learning", "mooc", "language learning", "english language", "language study", "learners", "mobile devices", "mobile-assisted", "mall", "learner autonomy", "interview data"]
     },
     "Finance": {
         "description": "Financial Computing and FinTech apply quantitative models and algorithmic intelligence to trading, risk management, fraud detection, and credit scoring.",
@@ -123,7 +123,7 @@ RESEARCH_DOMAINS_TAXONOMY: Dict[str, Dict[str, Any]] = {
     },
     "Social Science": {
         "description": "Social Science explores human society, social relationships, ethics, policy, anthropology, and socio-economic dynamics.",
-        "keywords": ["social science", "sociology", "society", "ethics", "policy", "governance", "public policy", "behavioral", "demographics", "fairness"]
+        "keywords": ["social science", "sociology", "society", "ethics", "policy", "governance", "public policy", "behavioral", "demographics", "fairness", "interview", "qualitative", "semi-structured interview"]
     },
     "Other": {
         "description": "Interdisciplinary and specialized research studies spanning multiple emerging or domain-specific fields.",

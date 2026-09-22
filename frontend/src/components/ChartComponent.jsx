@@ -105,7 +105,7 @@ export const ChartComponent = ({ visualizationData, data }) => {
             </h3>
           </div>
           <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', margin: 0 }}>
-            Benchmarking {series.length} model architectures across extracted evaluation metrics.
+            Visualizing {series.length} empirical data points extracted directly from the research paper.
           </p>
         </div>
 
@@ -157,7 +157,7 @@ export const ChartComponent = ({ visualizationData, data }) => {
               <Award size={20} />
             </div>
             <div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Top Benchmark</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Peak Value</div>
               <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff' }}>{bestModel.name}</div>
             </div>
           </div>
@@ -194,8 +194,8 @@ export const ChartComponent = ({ visualizationData, data }) => {
             <Layers size={20} />
           </div>
           <div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Evaluated Systems</div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff' }}>{series.length} Models</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Data Points</div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#ffffff' }}>{series.length} Items</div>
           </div>
         </div>
       </div>

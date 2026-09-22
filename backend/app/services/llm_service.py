@@ -95,9 +95,9 @@ class LLMService:
             intro = sections.get("introduction", "") if is_valid_section(sections.get("introduction")) else ""
             abstract = sections.get("abstract", "") if is_valid_section(sections.get("abstract")) else ""
             combined = f"{intro} {abstract}"
-            m = re.search(r'(?:challenge|problem|limitation|bottleneck|difficulty|obstacle)\s+(?:of|in|with|is that|investigated is)\s+([^.!?]+[.!?])', combined, re.IGNORECASE)
+            m = re.search(r'(?:challenge|problem|limitation|bottleneck|difficulty|obstacle|lack of)\s+(?:of|in|with|is that|investigated is|addressed is|regarding)\s+([^.!?]+[.!?])', combined, re.IGNORECASE)
             if m:
-                problem = f"The primary problem investigated is {m.group(1).strip()}"
+                problem = f"The primary problem investigated is {m.group(0).strip()}"
             elif abstract:
                 sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', abstract) if len(s.strip()) > 20]
                 if len(sentences) > 1:
@@ -109,19 +109,21 @@ class LLMService:
             motivation = sections["motivation"]
         else:
             intro = sections.get("introduction", "") if is_valid_section(sections.get("introduction")) else ""
-            m = re.search(r'(?:motivated by|crucial because|essential to|driven by|importance of)\s+([^.!?]+[.!?])', intro, re.IGNORECASE)
+            abstract = sections.get("abstract", "") if is_valid_section(sections.get("abstract")) else ""
+            combined = f"{intro} {abstract}"
+            m = re.search(r'(?:motivation behind|motivated by|crucial because|essential to|driven by|importance of|need to explore|rationale for)\s+([^.!?]+[.!?])', combined, re.IGNORECASE)
             if m:
-                motivation = f"The motivation behind this work is {m.group(1).strip()}"
+                motivation = f"The motivation behind this research is {m.group(0).strip()}"
 
         # 3. Objective
         objective = NOT_FOUND
         if is_valid_section(sections.get("objective")):
             objective = sections["objective"]
         else:
-            intro = sections.get("introduction", "") if is_valid_section(sections.get("introduction")) else ""
             abstract = sections.get("abstract", "") if is_valid_section(sections.get("abstract")) else ""
+            intro = sections.get("introduction", "") if is_valid_section(sections.get("introduction")) else ""
             combined = f"{abstract} {intro}"
-            m = re.search(r'(?:aims to|objective of this (?:paper|work|study) is to|goal is to|we propose to|this paper focuses on)\s+([^.!?]+[.!?])', combined, re.IGNORECASE)
+            m = re.search(r'(?:aim of this (?:paper|work|study) is to|objective of this (?:paper|work|study) is to|goal is to|we aim to|this paper focuses on|this paper investigates|purpose of this (?:study|paper) is to)\s+([^.!?]+[.!?])', combined, re.IGNORECASE)
             if m:
                 objective = f"The objective is to {m.group(1).strip()}"
             elif abstract:
@@ -129,14 +131,14 @@ class LLMService:
                 if sentences:
                     objective = sentences[0]
 
-        # 4. Proposed Solution
+        # 4. Proposed Solution / Investigation Approach
         solution = NOT_FOUND
         method = sections.get("methodology", "") if is_valid_section(sections.get("methodology")) else ""
         abstract = sections.get("abstract", "") if is_valid_section(sections.get("abstract")) else ""
         combined = f"{abstract} {method}"
-        m = re.search(r'(?:we propose|we introduce|we develop|this paper presents|in this work, we)\s+([^.!?]+[.!?])', combined, re.IGNORECASE)
+        m = re.search(r'(?:we propose|we introduce|we develop|this paper presents|in this work, we|the study employed|the study was conducted with)\s+([^.!?]+[.!?])', combined, re.IGNORECASE)
         if m:
-            solution = f"The proposed solution is {m.group(1).strip()}"
+            solution = f"The proposed investigation approach: {m.group(0).strip()}"
         elif method:
             solution = TextPolisher.format_neat_paragraph(method, max_sentences=3)
 
@@ -145,9 +147,9 @@ class LLMService:
         conclusion = sections.get("conclusion", "") if is_valid_section(sections.get("conclusion")) else ""
         intro = sections.get("introduction", "") if is_valid_section(sections.get("introduction")) else ""
         combined = f"{conclusion} {intro} {abstract}"
-        m = re.search(r'(?:contributions? (?:are|include)|we make the following contributions?|key contribution|novelty)\s*:?\s*([^.!?]+[.!?])', combined, re.IGNORECASE)
+        m = re.search(r'(?:contributions? (?:are|include)|we make the following contributions?|key contribution|novelty|study contributes|paper contributes)\s*:?\s*([^.!?]+[.!?])', combined, re.IGNORECASE)
         if m:
-            contribution = f"The key contribution is {m.group(1).strip()}"
+            contribution = f"The key contribution is {m.group(0).strip()}"
         elif conclusion:
             contribution = TextPolisher.format_neat_paragraph(conclusion, max_sentences=3)
         elif abstract:
@@ -157,50 +159,60 @@ class LLMService:
 
         # 6. Methodology
         methodology = NOT_FOUND
+        method_parts = []
+        if is_valid_section(sections.get("participants")):
+            method_parts.append(f"Participants: {sections['participants']}")
+        if is_valid_section(sections.get("data_collection")):
+            method_parts.append(f"Data Collection & Analysis: {sections['data_collection']}")
         if is_valid_section(sections.get("methodology")):
-            methodology = sections["methodology"]
+            method_parts.append(sections["methodology"])
+        
+        if method_parts:
+            methodology = " ".join(method_parts)
         elif text:
-            m = re.search(r'(?:framework|architecture|pipeline|approach|procedure)\s+(?:consists of|involves|is based on)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
+            m = re.search(r'(?:framework|architecture|pipeline|approach|procedure|methodology|the study)\s+(?:consists of|involves|is based on|employed|was conducted with)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
             if m:
-                methodology = f"The methodology involves {m.group(1).strip()}"
+                methodology = f"The methodology involves {m.group(0).strip()}"
 
-        # 7. Algorithms
+        # 7. Algorithms / Techniques
         algorithms = NOT_FOUND
         if is_valid_section(sections.get("algorithms")):
             algorithms = sections["algorithms"]
-        elif is_valid_section(sections.get("methodology")):
-            algo_matches = re.findall(r'\b(?:ResNet-\d+|CNN|RNN|LSTM|Transformer|BERT|GPT|SGD|Adam|VGG|YOLO|SVM|Random Forest|k-Means|Attention Mechanism|Gradient Descent)\b', sections["methodology"], re.IGNORECASE)
+        else:
+            search_text = f"{sections.get('methodology', '')} {sections.get('data_collection', '')} {text}"
+            algo_matches = re.findall(r'\b(?:ResNet-\d+|CNN|RNN|LSTM|Transformer|BERT|GPT|SGD|Adam|VGG|YOLO|SVM|Random Forest|k-Means|Attention Mechanism|Gradient Descent|qualitative thematic coding|thematic analysis|descriptive statistics|frequency analysis|semi-structured interview analysis)\b', search_text, re.IGNORECASE)
             if algo_matches:
-                unique_algos = list(dict.fromkeys([a.upper() for a in algo_matches]))
-                algorithms = f"Key algorithms and architectural models utilized: {', '.join(unique_algos[:6])}."
+                unique_algos = list(dict.fromkeys([a.title() for a in algo_matches]))
+                algorithms = f"Key analytical methods and algorithmic techniques utilized: {', '.join(unique_algos[:6])}."
 
-        # 8. Technologies & Frameworks
+        # 8. Technologies & Frameworks / Tools
         technologies = NOT_FOUND
         if is_valid_section(sections.get("technologies")):
             technologies = sections["technologies"]
         elif text:
-            tech_matches = re.findall(r'\b(?:PyTorch|TensorFlow|Keras|CUDA|GPU|Python|Scikit-learn|OpenCV|NumPy|Pandas|HuggingFace|Docker)\b', text, re.IGNORECASE)
+            tech_matches = re.findall(r'\b(?:PyTorch|TensorFlow|Keras|CUDA|GPU|Python|Scikit-learn|OpenCV|NumPy|Pandas|HuggingFace|Docker|mobile devices|smartphones|online dictionaries|translation applications|podcasts|social media platforms)\b', text, re.IGNORECASE)
             if tech_matches:
-                unique_tech = list(dict.fromkeys(tech_matches))
-                technologies = f"Software frameworks and computing infrastructure: {', '.join(unique_tech[:6])}."
+                unique_tech = list(dict.fromkeys([t.title() for t in tech_matches]))
+                technologies = f"Software frameworks, tools, and platforms: {', '.join(unique_tech[:6])}."
 
-        # 9. Dataset
+        # 9. Dataset / Data Source
         dataset = NOT_FOUND_DATASET
         if is_valid_section(sections.get("dataset")):
             dataset = sections["dataset"]
         elif text:
-            # Check for explicitly labeled dataset mentions
             data_matches = re.findall(r'\b(?:ImageNet|COCO|CIFAR-10|CIFAR-100|MNIST|WMT|SQuAD|GLUE|VOC|Kaggle)\b', text, re.IGNORECASE)
             if data_matches:
                 unique_data = list(dict.fromkeys(data_matches))
-                dataset = f"Evaluated benchmarks and datasets: {', '.join(unique_data[:5])}."
+                dataset = f"Evaluated benchmark datasets: {', '.join(unique_data[:5])}."
 
-        # 10. Experimental Setup
+        # 10. Experimental Setup / Study Setting
         setup = NOT_FOUND
         if is_valid_section(sections.get("experimental_setup")):
             setup = sections["experimental_setup"]
+        elif is_valid_section(sections.get("participants")):
+            setup = f"Study setting and participant sample: {sections['participants']}"
         elif text:
-            m = re.search(r'(?:trained on|hyperparameters|batch size|learning rate|epoch|optimizer)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
+            m = re.search(r'(?:trained on|hyperparameters|batch size|learning rate|epoch|optimizer|study setting)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
             if m:
                 setup = f"Experimental environment: {m.group(0).strip()}"
 
@@ -208,14 +220,18 @@ class LLMService:
         results = NOT_FOUND
         if is_valid_section(sections.get("results")):
             results = sections["results"]
+        elif is_valid_section(sections.get("findings")):
+            results = sections["findings"]
         elif text:
-            m = re.search(r'(?:achieved?|outperforms?|accuracy of|error rate of|bleu score of|precision of)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
+            m = re.search(r'(?:findings demonstrate that|results show that|revealed that|achieved?|outperforms?|accuracy of|error rate of|bleu score of|precision of)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
             if m:
-                results = f"Experimental validation reports that {m.group(0).strip()}"
+                results = f"Empirical findings report that {m.group(0).strip()}"
 
-        # 12. Key Findings / Observation
+        # 12. Key Findings / Observations
         findings = NOT_FOUND
-        if is_valid_section(sections.get("discussion")):
+        if is_valid_section(sections.get("findings")):
+            findings = TextPolisher.format_neat_paragraph(sections["findings"], max_sentences=3)
+        elif is_valid_section(sections.get("discussion")):
             findings = TextPolisher.format_neat_paragraph(sections["discussion"], max_sentences=3)
         elif is_valid_section(sections.get("results")):
             findings = TextPolisher.format_neat_paragraph(sections["results"], max_sentences=3)
@@ -227,7 +243,7 @@ class LLMService:
         if is_valid_section(sections.get("limitations")):
             limitations = sections["limitations"]
         elif text:
-            m = re.search(r'(?:limitation|drawback|threat to validity|computational complexity|overhead)\s+(?:is|includes|of)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
+            m = re.search(r'(?:limitation|drawback|threat to validity|small sample size|computational complexity|overhead)\s+(?:is|includes|of)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
             if m:
                 limitations = f"Identified limitation: {m.group(0).strip()}"
 
@@ -236,9 +252,9 @@ class LLMService:
         if is_valid_section(sections.get("future_work")):
             future_work = sections["future_work"]
         elif text:
-            m = re.search(r'(?:future work|future directions?|further research|plan to explore)\s+(?:will|aims to|includes)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
+            m = re.search(r'(?:future work|future directions?|future research|further research|plan to explore|should include)\s+(?:will|aims to|includes|should|could)\s+([^.!?]+[.!?])', text, re.IGNORECASE)
             if m:
-                future_work = f"Future work: {m.group(0).strip()}"
+                future_work = f"Future research direction: {m.group(0).strip()}"
 
         return {
             "research_problem": problem,

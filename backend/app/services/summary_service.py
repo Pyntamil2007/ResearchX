@@ -68,10 +68,17 @@ class SummaryService:
         how_performed = NOT_FOUND
         if methodology:
             how_performed = TextPolisher.format_neat_paragraph(methodology, max_sentences=2)
+        elif is_valid_section(sections.get("participants")) or is_valid_section(sections.get("data_collection")):
+            parts = []
+            if is_valid_section(sections.get("participants")):
+                parts.append(f"Study sample: {sections['participants']}")
+            if is_valid_section(sections.get("data_collection")):
+                parts.append(f"Data collection & analysis: {sections['data_collection']}")
+            how_performed = TextPolisher.format_neat_paragraph(" ".join(parts), max_sentences=2)
         elif abstract:
-            method_match = re.search(r'(?:we propose|we introduce|we design|by using|via|our approach)\s+([^.!?]+[.!?])', abstract, re.IGNORECASE)
+            method_match = re.search(r'(?:we propose|we introduce|we design|by using|via|our approach|the study (?:involved|employed|investigated))\s+([^.!?]+[.!?])', abstract, re.IGNORECASE)
             if method_match:
-                how_performed = TextPolisher.polish_sentence(f"The authors propose {method_match.group(1).strip()}")
+                how_performed = TextPolisher.polish_sentence(f"The authors note that {method_match.group(0).strip()}")
             else:
                 how_performed = TextPolisher.format_neat_paragraph(abstract, max_sentences=2)
 
@@ -79,16 +86,20 @@ class SummaryService:
         what_result = NOT_FOUND
         if results:
             what_result = TextPolisher.format_neat_paragraph(results, max_sentences=2)
+        elif is_valid_section(sections.get("findings")):
+            what_result = TextPolisher.format_neat_paragraph(sections["findings"], max_sentences=2)
+        elif is_valid_section(sections.get("discussion")):
+            what_result = TextPolisher.format_neat_paragraph(sections["discussion"], max_sentences=2)
         elif conclusion:
-            res_match = re.search(r'(?:results show|demonstrates that|achieves|outperforms|evaluated on)\s+([^.!?]+[.!?])', conclusion, re.IGNORECASE)
+            res_match = re.search(r'(?:results show|findings demonstrate|demonstrates that|achieves|outperforms|evaluated on|findings highlight)\s+([^.!?]+[.!?])', conclusion, re.IGNORECASE)
             if res_match:
-                what_result = TextPolisher.polish_sentence(f"Experimental outcomes show that {res_match.group(1).strip()}")
+                what_result = TextPolisher.polish_sentence(f"Experimental outcomes show that {res_match.group(0).strip()}")
             else:
                 what_result = TextPolisher.format_neat_paragraph(conclusion, max_sentences=2)
         elif abstract:
-            res_match = re.search(r'(?:results show|demonstrates that|achieves|outperforms)\s+([^.!?]+[.!?])', abstract, re.IGNORECASE)
+            res_match = re.search(r'(?:results show|findings demonstrate|demonstrates that|achieves|outperforms|revealed that)\s+([^.!?]+[.!?])', abstract, re.IGNORECASE)
             if res_match:
-                what_result = TextPolisher.polish_sentence(f"The paper reports that {res_match.group(1).strip()}")
+                what_result = TextPolisher.polish_sentence(f"The paper reports that {res_match.group(0).strip()}")
 
         # 6. What is the main contribution?
         contribution = NOT_FOUND

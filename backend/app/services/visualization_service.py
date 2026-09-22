@@ -14,9 +14,10 @@ class VisualizationService:
         If no suitable numerical data exists, returns has_visualizations = False with a clear message.
         """
         target_text = "\n".join([
+            sections.get("findings", ""),
             sections.get("results", ""),
-            sections.get("experimental_setup", ""),
             sections.get("discussion", ""),
+            sections.get("experimental_setup", ""),
             sections.get("abstract", "")
         ]).strip()
 
@@ -99,7 +100,59 @@ class VisualizationService:
                         "comparison_group": f"{raw_metric} Benchmark"
                     })
 
-        # 2. Check for explicit landmark model evaluations in paper text
+        # 2. Survey, empirical findings, and percentage distributions
+        empirical_patterns = [
+            # 9 participants (45%) reported using ... or 9 participants / 45% ...
+            r'(?P<count>\d+)\s*(?:participants?|students?|respondents?|subjects?|users?|informants?)\s*[\(\/\-]\s*(?P<val>\d{1,3}(?:\.\d{1,2})?)\s*%\s*[\)]?\s*(?:reported|stated|used|utilized|watched|engaged in|preferred|chose|indicated|for)?\s*(?P<label>[A-Za-z0-9\s\-\_\(\)\'\’\/]{3,65})',
+            # 45% (9 participants) ...
+            r'(?P<val>\d{1,3}(?:\.\d{1,2})?)\s*%\s*\(\s*(?P<count>\d+)\s*(?:participants?|students?|respondents?|subjects?|users?)\s*\)\s*(?:reported|stated|used|utilized|watched|engaged in|preferred|chose|indicated|for)?\s*(?P<label>[A-Za-z0-9\s\-\_\(\)\'\’\/]{3,65})',
+            # 45% of participants reported ...
+            r'(?P<val>\d{1,3}(?:\.\d{1,2})?)\s*%\s*(?:of\s+(?:the\s+)?(?:participants?|students?|respondents?|sample|users?|subjects?))?\s*(?:reported|stated|used|utilized|watched|engaged in|preferred|chose|indicated)\s+(?P<label>[A-Za-z0-9\s\-\_\(\)\'\’\/]{3,65})',
+            # Item : 45% or Item - 45%
+            r'(?:^|\n)\s*[\-\*\•]?\s*(?P<label>[A-Z][A-Za-z0-9\s\-\_\(\)\'\’\/]{2,40})\s*[:–—\-]\s*(?P<val>\d{1,3}(?:\.\d{1,2})?)\s*%'
+        ]
+
+        for pat in empirical_patterns:
+            for m in re.finditer(pat, target_text, re.IGNORECASE):
+                groups = m.groupdict()
+                val_str = groups.get("val")
+                if not val_str:
+                    continue
+                try:
+                    val_float = float(val_str)
+                except (ValueError, TypeError):
+                    continue
+
+                if val_float <= 0 or val_float > 100:
+                    continue
+
+                raw_label = groups.get("label") or "Empirical Observation"
+                # Clean up raw label at clause splitters
+                raw_label = re.split(r'[,;\.\n]|\bwhereas\b|\bwhile\b', raw_label, flags=re.IGNORECASE)[0].strip(" :–—-\n\t|()").strip()
+                raw_label = re.sub(r'^(?:reported|stated|used|utilized|watched|engaged in|preferred|chose|indicated|that|to)\s+', '', raw_label, flags=re.IGNORECASE).strip()
+                
+                # Truncate clean label if too long
+                if len(raw_label) > 55:
+                    raw_label = raw_label[:52].rstrip() + "..."
+
+                if len(raw_label) < 3 or raw_label.lower() in ["we", "this", "study", "paper", "data", "results"]:
+                    continue
+
+                label_formatted = raw_label[0].upper() + raw_label[1:] if len(raw_label) > 0 else raw_label
+                count_info = f" ({groups['count']} participants)" if groups.get("count") else ""
+                metric_name = "Percentage (%)"
+                
+                key = (label_formatted.lower(), metric_name.lower())
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    extracted_results.append({
+                        "model_name": f"{label_formatted}{count_info}",
+                        "metric_name": metric_name,
+                        "metric_value": val_float,
+                        "comparison_group": "Survey & Empirical Findings"
+                    })
+
+        # 3. Check for explicit landmark model evaluations in paper text
         landmarks = [
             (r'Transformer\s*\(big\)[^\d]*(\d{1,2}(?:\.\d{1,2})?)', "Transformer (Big)", "BLEU Score"),
             (r'Transformer\s*\(base\)[^\d]*(\d{1,2}(?:\.\d{1,2})?)', "Transformer (Base)", "BLEU Score"),
@@ -132,7 +185,7 @@ class VisualizationService:
                 except Exception:
                     pass
 
-        # 3. If paper contains no suitable numerical comparison data, do NOT generate fake data.
+        # 4. If paper contains no suitable numerical comparison data, do NOT generate fake data.
         if len(extracted_results) < 2:
             return [], {
                 "has_visualizations": False,

@@ -186,7 +186,7 @@ def run_full_suite():
 
         # STRICT DATA INTEGRITY ASSERTION:
         assert qual_report["has_visualizations"] is False
-        assert "No suitable numerical or comparative data" in qual_report["visualization_data"]["message"]
+        assert "No suitable numerical data was found in the paper for this visualization." in qual_report["visualization_data"]["message"]
         log_ok("STRICT INTEGRITY ENFORCED: Qualitative paper produced ZERO fake charts and returned exact required message")
 
     # 11. Analysis History

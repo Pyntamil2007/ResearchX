@@ -71,33 +71,45 @@ class PDFService:
         ]
         
         for pat in author_patterns:
-            m = re.search(pat, text[:2000], re.IGNORECASE)
+            m = re.search(pat, text[:2500], re.IGNORECASE)
             if m:
                 candidate = m.group(1).strip()
                 names = PDFService._extract_valid_names_from_text(candidate)
                 if names:
                     return ", ".join(names)
 
-        # 2. Look exclusively in the candidate block between Title and Abstract / Introduction
+        # 2. Locate the boundary where Abstract / Introduction / Keywords starts
         abstract_idx = -1
-        for idx, line in enumerate(lines[:20]):
-            if re.match(r'^(?:abstract|introduction|1\.?\s+introduction)\b', line, re.IGNORECASE):
+        for idx, line in enumerate(lines[:25]):
+            if re.match(r'^(?:abstract|introduction|1\.?\s+introduction|keywords?|index terms?)\b', line, re.IGNORECASE):
                 abstract_idx = idx
                 break
 
-        search_limit = abstract_idx if abstract_idx > 1 else min(8, len(lines))
-        candidate_lines = []
-        # Skip the first 1-2 lines if they represent the title
-        start_line = 1 if len(lines) > 1 else 0
-        if len(lines) > 2 and len(lines[0]) < 40 and not any(lines[0].lower().startswith(x) for x in ["by", "author"]):
-            start_line = 2
+        search_limit = abstract_idx if abstract_idx > 1 else min(10, len(lines))
+        
+        # Determine title lines to avoid treating title fragments as author names
+        title_lines_count = 1
+        if len(lines) > 2 and len(lines[0]) < 60 and not PDFService._extract_valid_names_from_text(lines[0]):
+            if not PDFService._extract_valid_names_from_text(lines[1]):
+                if not any(lines[1].lower().startswith(x) for x in ["by", "author", "dr.", "prof."]):
+                    if not any(w in lines[1].lower() for w in ["university", "department", "email", "@"]):
+                        if abstract_idx > 2:
+                            title_lines_count = 2
 
-        for line in lines[start_line:search_limit]:
+        candidate_lines = []
+        for line in lines[title_lines_count:search_limit]:
             sanitized = PDFService._sanitize_author_line(line)
             if sanitized:
                 candidate_lines.append(sanitized)
 
         if candidate_lines:
+            # Check individual candidate lines first for high-confidence person names
+            for cand in candidate_lines:
+                names = PDFService._extract_valid_names_from_text(cand)
+                if names:
+                    return ", ".join(names)
+
+            # Otherwise test combined string
             combined = " ".join(candidate_lines)
             names = PDFService._extract_valid_names_from_text(combined)
             if names:
@@ -113,7 +125,12 @@ class PDFService:
             return []
 
         # Remove academic titles and prefixes before splitting
-        cleaned_text = re.sub(r'\b(?:Dr\.|Prof\.|Professor|Doctor|Mr\.|Ms\.|Mrs\.|Ph\.D\.|M\.Sc\.|B\.Sc\.|MD|IEEE Fellow|Member|Senior Member)\b', '', sanitized, flags=re.IGNORECASE)
+        cleaned_text = re.sub(
+            r'\b(?:Dr\.|Prof\.|Professor|Doctor|Mr\.|Ms\.|Mrs\.|Ph\.D\.|M\.Sc\.|B\.Sc\.|MD|IEEE Fellow|Senior Member|Member IEEE|Fellow IEEE)\b',
+            '',
+            sanitized,
+            flags=re.IGNORECASE
+        )
 
         # Split on commas, semicolons, 'and', or '&'
         raw_parts = [p.strip() for p in re.split(r'[,;]|\band\b|&', cleaned_text) if p.strip()]
@@ -137,19 +154,29 @@ class PDFService:
             return None
 
         lower = line.lower()
-        exclude_words = [
-            "university", "department", "institute", "faculty", "laboratory", "school of",
-            "college", "research center", "google", "deepmind", "microsoft", "meta", "openai",
-            "stanford", "mit", "berkeley", "cambridge", "oxford", "ieee", "acm", "springer",
-            "elsevier", "arxiv", "abstract", "introduction", "keywords", "index terms",
-            "published in", "proceedings", "conference", "journal", "volume", "vol.", "no.",
-            "pp.", "doi:", "http", "www.", "copyright", "all rights reserved", "received", "accepted",
-            "acknowledgement", "reference", "citation", "editor", "press", "inc.", "ltd", "corp",
-            "usa", "uk", "china", "germany", "france", "canada", "india", "japan", "center for",
-            "lab", "division", "tech report", "preprint", "under review"
+        exclude_phrases = [
+            "school of", "research center", "index terms", "published in",
+            "all rights reserved", "center for", "tech report", "under review",
+            "university of", "department of", "faculty of", "institute of"
         ]
+        if any(p in lower for p in exclude_phrases):
+            return None
+
+        exclude_words = {
+            "university", "department", "institute", "faculty", "laboratory", "school",
+            "college", "google", "deepmind", "microsoft", "meta", "openai",
+            "stanford", "mit", "berkeley", "cambridge", "oxford", "ieee", "acm", "springer",
+            "elsevier", "arxiv", "abstract", "introduction", "keywords",
+            "proceedings", "conference", "journal", "volume", "vol.", "no.",
+            "pp.", "doi:", "http", "www.", "copyright", "received", "accepted",
+            "acknowledgement", "reference", "citation", "editor", "press", "inc.", "ltd", "corp",
+            "usa", "uk", "china", "germany", "france", "canada", "india", "japan", "poland",
+            "lab", "division", "preprint", "zielona", "zgora", "philology"
+        }
         
-        if any(w in lower for w in exclude_words):
+        # Tokenize line words to check word boundaries accurately without false substring hits
+        line_tokens = set(re.findall(r'\b[a-z0-9\.\:]+\b', lower))
+        if any(w in line_tokens for w in exclude_words):
             return None
 
         # Remove email addresses like name@domain.com or {name1, name2}@domain.com
@@ -174,26 +201,30 @@ class PDFService:
 
     @staticmethod
     def _is_valid_person_name(name: str) -> bool:
-        """Check if candidate string is a plausible person name."""
+        """Check if candidate string is a plausible person name supporting Unicode characters."""
         name = name.strip()
-        if len(name) < 3 or len(name) > 50:
+        if len(name) < 3 or len(name) > 60:
             return False
         
         words = name.split()
         if len(words) < 1 or len(words) > 5:
             return False
             
-        # Must only contain alphabetical characters, hyphens, periods, or apostrophes
-        if not re.match(r"^[A-Za-z\.\'\-\s]+$", name):
+        # Must only contain Unicode letters, periods, apostrophes, hyphens, or spaces
+        if not re.match(r"^[\w\.\'\-\s]+$", name, re.UNICODE) or any(c.isdigit() for c in name):
             return False
             
-        # Exclude non-name stop words and research terms
+        # Exclude non-name stop words, research terms, and institutional words
         stopwords = {
             "the", "and", "for", "with", "from", "paper", "study", "analysis", "system", "model",
             "deep", "learning", "residual", "attention", "transformer", "network", "overview",
             "report", "survey", "method", "results", "table", "figure", "page", "section",
             "quantum", "neural", "framework", "architecture", "dataset", "empirical", "evaluation",
-            "abstract", "introduction", "conclusion", "state", "estimation", "algorithm"
+            "abstract", "introduction", "conclusion", "state", "estimation", "algorithm",
+            "advanced", "learners", "mobile", "devices", "english", "language", "insights",
+            "interview", "data", "qualitative", "quantitative", "investigation",
+            "university", "department", "institute", "faculty", "laboratory", "school", "college",
+            "zielona", "zgora", "philology", "poland"
         }
         if any(w.lower() in stopwords for w in words):
             return False
@@ -237,7 +268,7 @@ class PDFService:
         # 6. Standard Research Paper (Has Abstract + Methodology / Results / References)
         has_abstract = "abstract" in lower
         has_refs = "references" in lower or "bibliography" in lower
-        if has_abstract and has_refs:
+        if has_abstract or has_refs:
             return "Research Paper"
 
         # Default fallback
@@ -263,11 +294,14 @@ class PDFService:
                 "motivation": NOT_FOUND,
                 "objective": NOT_FOUND,
                 "methodology": NOT_FOUND,
+                "participants": NOT_FOUND,
+                "data_collection": NOT_FOUND,
                 "algorithms": NOT_FOUND,
                 "technologies": NOT_FOUND,
                 "dataset": NOT_FOUND_DATASET,
                 "experimental_setup": NOT_FOUND,
                 "results": NOT_FOUND,
+                "findings": NOT_FOUND,
                 "discussion": NOT_FOUND,
                 "conclusion": NOT_FOUND,
                 "limitations": NOT_FOUND,
@@ -284,7 +318,7 @@ class PDFService:
             first_line = lines[0]
             if len(first_line) > 10 and not first_line.lower().startswith("abstract"):
                 title = first_line
-                if len(title) < 35 and len(lines) > 1 and not lines[1].lower().startswith("abstract"):
+                if len(title) < 45 and len(lines) > 1 and not lines[1].lower().startswith("abstract"):
                     title = f"{title} {lines[1]}"
             else:
                 title = lines[0]
@@ -293,24 +327,27 @@ class PDFService:
         # 2. Extract Authors cleanly
         sections["authors"] = PDFService.extract_clean_authors(text, lines)
 
-        # 3. Heading boundaries for academic papers and documents
+        # 3. Heading boundaries for multi-disciplinary academic papers and documents
         heading_patterns = [
-            ("abstract", r'(?:^|\n)(?:[\d\.]+\s+)?(?:ABSTRACT|Abstract)\b[:\s]*'),
-            ("introduction", r'(?:^|\n)(?:[\d\.]+\s+)?(?:INTRODUCTION|Introduction|1\.?\s+Introduction)\b[:\s]*'),
-            ("problem", r'(?:^|\n)(?:[\d\.]+\s+)?(?:PROBLEM STATEMENT|Problem Statement|Problem Formulation|Research Problem)\b[:\s]*'),
-            ("motivation", r'(?:^|\n)(?:[\d\.]+\s+)?(?:MOTIVATION|Motivation|Background and Motivation)\b[:\s]*'),
-            ("objective", r'(?:^|\n)(?:[\d\.]+\s+)?(?:OBJECTIVES?|Objectives?|Research Goals?)\b[:\s]*'),
-            ("methodology", r'(?:^|\n)(?:[\d\.]+\s+)?(?:METHODOLOGY|Methodology|PROPOSED METHOD|Proposed Method|APPROACH|Approach|SYSTEM ARCHITECTURE|Architecture|System Design)\b[:\s]*'),
-            ("algorithms", r'(?:^|\n)(?:[\d\.]+\s+)?(?:ALGORITHMS?|Algorithms?|Model Architecture|Mathematical Formulation)\b[:\s]*'),
-            ("technologies", r'(?:^|\n)(?:[\d\.]+\s+)?(?:TECHNOLOGY STACK|Tools and Technologies|Implementation Details|Frameworks)\b[:\s]*'),
-            ("dataset", r'(?:^|\n)(?:[\d\.]+\s+)?(?:DATASET|Datasets?|Data Collection|Benchmark Datasets?)\b[:\s]*'),
-            ("experimental_setup", r'(?:^|\n)(?:[\d\.]+\s+)?(?:EXPERIMENTAL SETUP|Experimental Setup|Experiments|Evaluation Setup|Training Details)\b[:\s]*'),
-            ("results", r'(?:^|\n)(?:[\d\.]+\s+)?(?:RESULTS|Results|EXPERIMENTAL RESULTS|Experimental Results|EVALUATION|Evaluation|Performance Analysis)\b[:\s]*'),
-            ("discussion", r'(?:^|\n)(?:[\d\.]+\s+)?(?:DISCUSSION|Discussion|Analysis of Results)\b[:\s]*'),
-            ("limitations", r'(?:^|\n)(?:[\d\.]+\s+)?(?:LIMITATIONS?|Limitations?|Threats to Validity)\b[:\s]*'),
-            ("future_work", r'(?:^|\n)(?:[\d\.]+\s+)?(?:FUTURE WORK|Future Work|Future Directions?)\b[:\s]*'),
-            ("conclusion", r'(?:^|\n)(?:[\d\.]+\s+)?(?:CONCLUSION|Conclusion|Conclusions and Future Work|Concluding Remarks)\b[:\s]*'),
-            ("references", r'(?:^|\n)(?:[\d\.]+\s+)?(?:REFERENCES|References|BIBLIOGRAPHY|Bibliography)\b[:\s]*')
+            ("abstract", r'(?:^|\n)(?:[\d\.]+\s+)?(?:ABSTRACT|Abstract)\b[:\s]*\n?'),
+            ("introduction", r'(?:^|\n)(?:[\d\.]+\s+)?(?:INTRODUCTION|Introduction|Background|Theoretical Background)\b[:\s]*\n?'),
+            ("problem", r'(?:^|\n)(?:[\d\.]+\s+)?(?:PROBLEM STATEMENT|Problem Statement|Problem Formulation|Research Problem|The Problem)\b[:\s]*\n?'),
+            ("motivation", r'(?:^|\n)(?:[\d\.]+\s+)?(?:MOTIVATION|Motivation|Background and Motivation|Rationale)\b[:\s]*\n?'),
+            ("objective", r'(?:^|\n)(?:[\d\.]+\s+)?(?:OBJECTIVES?|Objectives?|Research Goals?|Aim of the Study|Aims? of the Research|Research Questions?|Purpose of the Study)\b[:\s]*\n?'),
+            ("methodology", r'(?:^|\n)(?:[\d\.]+\s+)?(?:METHODOLOGY|Methodology|PROPOSED METHOD|Proposed Method|APPROACH|Approach|SYSTEM ARCHITECTURE|Architecture|System Design|Research Design|Method of Investigation|Procedure|Instrumentation|Methods)\b[:\s]*\n?'),
+            ("participants", r'(?:^|\n)(?:[\d\.]+\s+)?(?:PARTICIPANTS|Participants|Subjects?|Sample|Informants|Respondents?|Participants and Setting)\b[:\s]*\n?'),
+            ("data_collection", r'(?:^|\n)(?:[\d\.]+\s+)?(?:DATA COLLECTION(?: AND ANALYSIS)?|Data Collection(?: and Analysis)?|Instruments?|Interviews?|Questionnaires?|Data Sources?)\b[:\s]*\n?'),
+            ("algorithms", r'(?:^|\n)(?:[\d\.]+\s+)?(?:ALGORITHMS?|Algorithms?|Model Architecture|Mathematical Formulation|Data Analysis Procedures?)\b[:\s]*\n?'),
+            ("technologies", r'(?:^|\n)(?:[\d\.]+\s+)?(?:TECHNOLOGY STACK|Tools and Technologies|Implementation Details|Frameworks|Hardware and Software|Mobile Devices and Tools|Resources and Tools)\b[:\s]*\n?'),
+            ("dataset", r'(?:^|\n)(?:[\d\.]+\s+)?(?:DATASET|Datasets?|Benchmark Datasets?|Corpus|Corpora)\b[:\s]*\n?'),
+            ("experimental_setup", r'(?:^|\n)(?:[\d\.]+\s+)?(?:EXPERIMENTAL SETUP|Experimental Setup|Experiments|Evaluation Setup|Training Details|Context and Setting)\b[:\s]*\n?'),
+            ("results", r'(?:^|\n)(?:[\d\.]+\s+)?(?:RESULTS|Results|EXPERIMENTAL RESULTS|Experimental Results|EVALUATION|Evaluation|Performance Analysis)\b[:\s]*\n?'),
+            ("findings", r'(?:^|\n)(?:[\d\.]+\s+)?(?:FINDINGS(?: AND DISCUSSION)?|Findings(?: and Discussion)?|Key Findings|Observations?|Empirical Findings)\b[:\s]*\n?'),
+            ("discussion", r'(?:^|\n)(?:[\d\.]+\s+)?(?:DISCUSSION(?: OF FINDINGS)?|Discussion(?: of Findings)?|Analysis of Results)\b[:\s]*\n?'),
+            ("limitations", r'(?:^|\n)(?:[\d\.]+\s+)?(?:LIMITATIONS?(?: AND FUTURE (?:RESEARCH|WORK))?|Limitations?(?: and Future (?:Research|Work))?|Threats to Validity|Limitations of the Study)\b[:\s]*\n?'),
+            ("future_work", r'(?:^|\n)(?:[\d\.]+\s+)?(?:FUTURE WORK|Future Work|Future Directions?|Future Research|Directions for Future Research)\b[:\s]*\n?'),
+            ("conclusion", r'(?:^|\n)(?:[\d\.]+\s+)?(?:CONCLUSIONS?(?: AND PEDAGOGICAL IMPLICATIONS)?|Conclusions?(?: and Pedagogical Implications)?|Concluding Remarks|Pedagogical Implications|Implications for Teaching)\b[:\s]*\n?'),
+            ("references", r'(?:^|\n)(?:[\d\.]+\s+)?(?:REFERENCES|References|BIBLIOGRAPHY|Bibliography)\b[:\s]*\n?')
         ]
 
         # Find match indices

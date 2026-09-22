@@ -1,7 +1,49 @@
 import React from 'react';
 import { HelpCircle, Target, Lightbulb, Cog, Award, CheckCircle2, Sparkles } from 'lucide-react';
 
-export const EasySummaryCard = ({ easySummary }) => {
+export const EasySummaryCard = ({ easySummary, question, answer, iconName, color, qNum }) => {
+  // 1. Single card render mode (used in AnalysisReport.jsx grid)
+  if (question !== undefined) {
+    const renderIcon = () => {
+      switch (iconName) {
+        case 'book': return <HelpCircle size={18} />;
+        case 'target': return <Target size={18} />;
+        case 'lightbulb': return <Lightbulb size={18} />;
+        case 'cpu': return <Cog size={18} />;
+        case 'trending-up': return <CheckCircle2 size={18} />;
+        case 'check-circle': return <Award size={18} />;
+        default: return <HelpCircle size={18} />;
+      }
+    };
+
+    return (
+      <div className="easy-summary-card" style={{ borderTop: `3px solid ${color || 'var(--primary)'}` }}>
+        <div className="easy-summary-question" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <div
+            className="easy-summary-q-icon"
+            style={{
+              background: `${color || 'var(--primary)'}22`,
+              color: color || 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              borderRadius: 8
+            }}
+          >
+            {renderIcon()}
+          </div>
+          <span style={{ fontWeight: 600, fontSize: '0.98rem', color: '#ffffff' }}>{question}</span>
+        </div>
+        <p className="easy-summary-answer" style={{ color: 'var(--text-dim)', fontSize: '0.92rem', lineHeight: 1.6, margin: 0 }}>
+          {answer || "Not explicitly mentioned in the paper."}
+        </p>
+      </div>
+    );
+  }
+
+  // 2. Full container render mode
   if (!easySummary) return null;
 
   const items = [
@@ -78,7 +120,7 @@ export const EasySummaryCard = ({ easySummary }) => {
               <span>{item.question}</span>
             </div>
             <p className="easy-summary-answer">
-              {item.answer || 'Information not available in the paper.'}
+              {item.answer || 'Not explicitly mentioned in the paper.'}
             </p>
           </div>
         ))}
