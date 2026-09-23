@@ -22,27 +22,36 @@ from app.routers import (
     notifications_router
 )
 
+from sqlalchemy import inspect
+
 def ensure_db_schema_columns(db_engine):
-    """Safely migrate and add new columns to existing SQLite database tables."""
+    """Safely migrate and add new columns to existing database tables (SQLite & PostgreSQL)."""
     try:
+        inspector = inspect(db_engine)
+        existing_tables = inspector.get_table_names()
+        
         with db_engine.connect() as conn:
-            # Check research_papers table columns
-            rp_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(research_papers)").fetchall()]
-            if rp_cols and "document_type" not in rp_cols:
-                conn.exec_driver_sql("ALTER TABLE research_papers ADD COLUMN document_type VARCHAR(100) DEFAULT 'Research Paper'")
+            # 1. research_papers table
+            if "research_papers" in existing_tables:
+                rp_cols = [c["name"] for c in inspector.get_columns("research_papers")]
+                if "document_type" not in rp_cols:
+                    conn.exec_driver_sql("ALTER TABLE research_papers ADD COLUMN document_type VARCHAR(100) DEFAULT 'Research Paper'")
             
-            # Check analyses table columns
-            an_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(analyses)").fetchall()]
-            if an_cols and "document_type" not in an_cols:
-                conn.exec_driver_sql("ALTER TABLE analyses ADD COLUMN document_type VARCHAR(100) DEFAULT 'Research Paper'")
-            if an_cols and "recommended_domains" not in an_cols:
-                conn.exec_driver_sql("ALTER TABLE analyses ADD COLUMN recommended_domains TEXT")
-            # Check users table columns
-            u_cols = [row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()]
-            if u_cols and "auth_provider" not in u_cols:
-                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN auth_provider VARCHAR(20) DEFAULT 'local'")
-            if u_cols and "google_id" not in u_cols:
-                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN google_id VARCHAR(100)")
+            # 2. analyses table
+            if "analyses" in existing_tables:
+                an_cols = [c["name"] for c in inspector.get_columns("analyses")]
+                if "document_type" not in an_cols:
+                    conn.exec_driver_sql("ALTER TABLE analyses ADD COLUMN document_type VARCHAR(100) DEFAULT 'Research Paper'")
+                if "recommended_domains" not in an_cols:
+                    conn.exec_driver_sql("ALTER TABLE analyses ADD COLUMN recommended_domains TEXT")
+                    
+            # 3. users table
+            if "users" in existing_tables:
+                u_cols = [c["name"] for c in inspector.get_columns("users")]
+                if "auth_provider" not in u_cols:
+                    conn.exec_driver_sql("ALTER TABLE users ADD COLUMN auth_provider VARCHAR(20) DEFAULT 'local'")
+                if "google_id" not in u_cols:
+                    conn.exec_driver_sql("ALTER TABLE users ADD COLUMN google_id VARCHAR(100)")
 
             conn.commit()
     except Exception as e:

@@ -16,8 +16,32 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     
-    # Database
-    DATABASE_URL: str = f"sqlite:///{BASE_DIR / 'researchx.db'}"
+    # Database Connection URL (Defaults to local SQLite if unset)
+    DATABASE_URL: Optional[str] = None
+    
+    def get_database_url(self) -> str:
+        """
+        Returns the normalized database connection string.
+        - Defaults to local SQLite if DATABASE_URL is unset or empty.
+        - Automatically normalizes 'postgres://' to 'postgresql://' for SQLAlchemy compatibility.
+        """
+        raw_url = (self.DATABASE_URL or "").strip()
+        if not raw_url:
+            return f"sqlite:///{BASE_DIR / 'researchx.db'}"
+        
+        # Render and Heroku use 'postgres://' by default; SQLAlchemy 1.4/2.0 requires 'postgresql://'
+        if raw_url.startswith("postgres://"):
+            raw_url = raw_url.replace("postgres://", "postgresql://", 1)
+            
+        return raw_url
+
+    def get_masked_database_url(self) -> str:
+        """Returns database URL with sensitive credentials masked for safe logging."""
+        import re
+        url = self.get_database_url()
+        if url.startswith("sqlite"):
+            return "sqlite:///*** (local SQLite file)"
+        return re.sub(r"://([^:]+):([^@]+)@", r"://\1:****@", url)
     
     # Frontend URL & CORS
     FRONTEND_URL: str = "http://127.0.0.1:5173"

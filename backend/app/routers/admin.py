@@ -221,7 +221,7 @@ def get_system_statistics(
             "domain_breakdown": {d: c for d, c in domains},
             "server": {
                 "status": "Operational",
-                "framework": "FastAPI + SQLAlchemy + SQLite",
+                "framework": f"FastAPI + SQLAlchemy + {'PostgreSQL' if 'postgresql' in settings.get_database_url() else 'SQLite'}",
                 "version": "1.0.0"
             }
         }
