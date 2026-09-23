@@ -59,53 +59,74 @@ def ensure_db_schema_columns(db_engine):
 
 from app.core.security import get_password_hash, verify_password
 
+import time
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize DB tables
-    Base.metadata.create_all(bind=engine)
-    ensure_db_schema_columns(engine)
+    # Initialize DB tables with retry logic for cloud PostgreSQL cold starts / transient connection delays
+    db_initialized = False
+    max_retries = 5
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"[DB INIT] Attempt {attempt}/{max_retries} connecting to database: {settings.get_masked_database_url()}")
+            Base.metadata.create_all(bind=engine)
+            ensure_db_schema_columns(engine)
+            db_initialized = True
+            print("[DB INIT] Database tables and schema verified successfully.")
+            break
+        except Exception as e:
+            print(f"[DB INIT WARNING] Attempt {attempt}/{max_retries} failed to initialize database: {e}")
+            if attempt < max_retries:
+                time.sleep(2)
+            else:
+                print("[DB INIT WARNING] Maximum database initialization retries reached. Server will start and retry on incoming requests.")
     
     # Ensure sample PDFs exist on disk for user experiments
-    DemoService.ensure_demo_files()
+    try:
+        DemoService.ensure_demo_files()
+    except Exception as e:
+        print(f"[DEMO FILES WARNING] Demo files setup warning: {e}")
 
     # Ensure admin@researchx.com exists with explicit role = 'ADMIN' and secure password
-    db = SessionLocal()
-    try:
-        admin_email = (getattr(settings, "ADMIN_EMAIL", None) or "admin@researchx.com").lower().strip()
-        admin_pwd = getattr(settings, "ADMIN_PASSWORD", None) or "Admin@2026"
-        
-        admin_user = db.query(User).filter(User.email == admin_email).first()
-        if not admin_user:
-            admin_user = User(
-                name="System Administrator",
-                email=admin_email,
-                password_hash=get_password_hash(admin_pwd),
-                role="ADMIN",
-                status="active",
-                auth_provider="local"
-            )
-            db.add(admin_user)
-            db.commit()
-            print(f"[ADMIN INIT] Created initial administrator account: {admin_email} (Role: ADMIN)")
-        else:
-            updated = False
-            if admin_user.role != "ADMIN":
-                admin_user.role = "ADMIN"
-                updated = True
-            if admin_user.status != "active":
-                admin_user.status = "active"
-                updated = True
-            if admin_pwd and not verify_password(admin_pwd, admin_user.password_hash):
-                admin_user.password_hash = get_password_hash(admin_pwd)
-                updated = True
-                print(f"[ADMIN INIT] Synchronized password hash for administrator: {admin_email}")
-            
-            if updated:
-                db.commit()
-    except Exception as e:
-        print(f"Admin setup warning: {e}")
-    finally:
-        db.close()
+    if db_initialized:
+        try:
+            db = SessionLocal()
+            try:
+                admin_email = (getattr(settings, "ADMIN_EMAIL", None) or "admin@researchx.com").lower().strip()
+                admin_pwd = getattr(settings, "ADMIN_PASSWORD", None) or "Admin@2026"
+                
+                admin_user = db.query(User).filter(User.email == admin_email).first()
+                if not admin_user:
+                    admin_user = User(
+                        name="System Administrator",
+                        email=admin_email,
+                        password_hash=get_password_hash(admin_pwd),
+                        role="ADMIN",
+                        status="active",
+                        auth_provider="local"
+                    )
+                    db.add(admin_user)
+                    db.commit()
+                    print(f"[ADMIN INIT] Created initial administrator account: {admin_email} (Role: ADMIN)")
+                else:
+                    updated = False
+                    if admin_user.role != "ADMIN":
+                        admin_user.role = "ADMIN"
+                        updated = True
+                    if admin_user.status != "active":
+                        admin_user.status = "active"
+                        updated = True
+                    if admin_pwd and not verify_password(admin_pwd, admin_user.password_hash):
+                        admin_user.password_hash = get_password_hash(admin_pwd)
+                        updated = True
+                        print(f"[ADMIN INIT] Synchronized password hash for administrator: {admin_email}")
+                    
+                    if updated:
+                        db.commit()
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"[ADMIN INIT WARNING] Admin setup warning: {e}")
         
     yield
 

@@ -23,15 +23,17 @@ class Settings(BaseSettings):
         """
         Returns the normalized database connection string.
         - Defaults to local SQLite if DATABASE_URL is unset or empty.
-        - Automatically normalizes 'postgres://' to 'postgresql://' for SQLAlchemy compatibility.
+        - Automatically normalizes 'postgres://' or 'postgres+psycopg2://' to 'postgresql://' for SQLAlchemy compatibility.
         """
-        raw_url = (self.DATABASE_URL or "").strip()
+        raw_url = (self.DATABASE_URL or "").strip().strip("'\"")
         if not raw_url:
             return f"sqlite:///{BASE_DIR / 'researchx.db'}"
         
         # Render and Heroku use 'postgres://' by default; SQLAlchemy 1.4/2.0 requires 'postgresql://'
         if raw_url.startswith("postgres://"):
             raw_url = raw_url.replace("postgres://", "postgresql://", 1)
+        elif raw_url.startswith("postgres+psycopg2://"):
+            raw_url = raw_url.replace("postgres+psycopg2://", "postgresql+psycopg2://", 1)
             
         return raw_url
 

@@ -2,7 +2,7 @@ import math
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, desc, func
+from sqlalchemy import or_, desc, asc, func
 from app.database.database import get_db
 from app.core.security import require_admin
 from app.models.user import User
